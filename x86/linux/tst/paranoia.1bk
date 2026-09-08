@@ -121,8 +121,7 @@ Testing if sqrt(X * X) == X for 20 Integers X.
 Test for sqrt monotonicity.
 sqrt has passed a test for Monotonicity.
 Testing whether sqrt is rounded or chopped.
-Square root is neither chopped nor correctly rounded.
-Observed errors run from -5.0000000e-01 to 5.0000000e-01 ulps.
+Square root appears to be correctly rounded.
 
 Diagnosis resumes after milestone Number 90          Page: 7
 
@@ -172,7 +171,7 @@ Diagnosis resumes after milestone Number 190          Page: 9
 What message and/or values does Division by Zero produce?
     Trying to compute 1 / 0 produces ...  inf .
 
-    Trying to compute 0 / 0 produces ...  nan .
+    Trying to compute 0 / 0 produces ...  -nan .
 
 Diagnosis resumes after milestone Number 220          Page: 10
 

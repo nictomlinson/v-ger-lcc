@@ -2,7 +2,7 @@
 A=.a
 O=.o
 E=
-CC=cc
+CC=cc -m32
 CFLAGS=-g
 LDFLAGS=-g
 LD=$(CC)
