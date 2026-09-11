@@ -24,12 +24,11 @@ static int isSeg(Node a, int seg); // true if ADDRGP symbol is in the segment
 static int isFunction(Node a);
 static int isNotFunction(Node a);
 static int isAsmCall(Node a);
-static int ifCost(int cond, int spaceCost, int timeCost);
+static int ifCost(int cond, int cost);
 static int inRange(Node a, int lo, int hi);
 
 static void doarg(Node);
 
-enum { POP = 45 << 4, ARGSTART = 46 <<4 }; // one more than VREG but not sure why VREG is 44
 #define IS_EVEN(v) (((v)&1)==0)
 static char *suffixes[] = {"0", "F", "D",  "C",  "S",  "I",  "U",  "P",
                            "V", "B", "10", "11", "12", "13", "14", "15"};
@@ -46,4 +45,10 @@ static char *suffixes[] = {"0", "F", "D",  "C",  "S",  "I",  "U",  "P",
     x long double 8
     p pointer 2
 */
+
+/*
+    In the LBURG rules we have the following left hand sides:
+
+*/
+
 #endif

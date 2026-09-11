@@ -31,8 +31,8 @@ static int isSeg(Node a, int seg) {
   return a->syms[0] && a->syms[0]->u.seg == seg;
 }
 
-static int ifCost(int cond, int spaceCost, int timeCost) {
-  return cond ? genCost(spaceCost, timeCost) : LBURG_MAX;
+static int ifCost(int cond, int cost) {
+  return cond ? cost : LBURG_MAX;
 }
 
 static int inRange(Node a, int lo, int hi) {
@@ -118,22 +118,23 @@ static void I(segment)(int n) {
     }
 }
 
-static void dumptree(Node p) {
+static void dumptreeBody(Node p) {
   switch (specific(p->op)) {
     case ASGN + B:
       assert(p->kids[0]);
       assert(p->kids[1]);
       assert(p->syms[0]);
-      indent++;
-      dumptree(p->kids[0]);
-      dumptree(p->kids[1]);
-      indent--;
-      print("%I%s %d\n", indent, opname(p->op), p->syms[0]->u.c.v.u);
+      print("%s[%d]", opname(p->op), p->syms[0]->u.c.v.u);
+      print("(");
+      dumptreeBody(p->kids[0]);
+      print(", ");
+      dumptreeBody(p->kids[1]);
+      print(")");
       return;
     case RET + V:
       assert(!p->kids[0]);
       assert(!p->kids[1]);
-      print("%I%s\n", indent, opname(p->op));
+      print("%s", opname(p->op));
       return;
   }
   switch (generic(p->op)) {
@@ -142,23 +143,20 @@ static void dumptree(Node p) {
       assert(!p->kids[0]);
       assert(!p->kids[1]);
       assert(p->syms[0] && p->syms[0]->x.name);
-      print("%I%s %s // offset=%d\n", indent, opname(p->op), p->syms[0]->x.name,
-            p->syms[0]->x.offset);
+      print("%s[%s]", opname(p->op), p->syms[0]->x.name);
       return;
     case ADDRF:
     case ADDRL:
       assert(!p->kids[0]);
       assert(!p->kids[1]);
       assert(p->syms[0] && p->syms[0]->x.name);
-      print("%I%s %d // name=%s\n", indent, opname(p->op), p->syms[0]->x.offset,
-            p->syms[0]->x.name);
+      print("%s[%d]", opname(p->op), p->syms[0]->x.offset);
       return;
     case LABEL:
       assert(!p->kids[0]);
       assert(!p->kids[1]);
       assert(p->syms[0] && p->syms[0]->x.name);
-      print("%ILABEL %s: // offset=%d\n", indent, p->syms[0]->x.name,
-            p->syms[0]->x.offset);
+      print("LABEL %s:", p->syms[0]->x.name);
       return;
     case CVF:
     case CVI:
@@ -167,15 +165,14 @@ static void dumptree(Node p) {
       assert(p->kids[0]);
       assert(!p->kids[1]);
       assert(p->syms[0]);
-      indent++;
-      dumptree(p->kids[0]);
-      indent--;
       {
         const char *op = opname(p->op);
         int srcSize = p->syms[0]->u.c.v.i;
         assert(strlen(op) == 5 && "Expected opname for CVx to be 5 long");
-        print("%I%S%d%s\n", indent, op, 3, srcSize, op + 3);
+        print("%S%d%s(", op, 3, srcSize, op + 3);
       }
+      dumptreeBody(p->kids[0]);
+      print(")");
       return;
     case ARG:
     case BCOM:
@@ -184,11 +181,9 @@ static void dumptree(Node p) {
     case JUMP:
     case RET:
       assert(p->kids[0]);
-      /*      assert(!p->kids[1]);*/
-      indent++;
-      dumptree(p->kids[0]);
-      indent--;
-      print("%I%s\n", indent, opname(p->op));
+      print("%s(", opname(p->op));
+      dumptreeBody(p->kids[0]);
+      print(")");
       return;
     case CALL:
       assert(p->kids[0]);
@@ -197,21 +192,23 @@ static void dumptree(Node p) {
       assert(p->syms[0]);
       // Other calls, through a function pointer need to push
       // the address on the stack and do an indirect call
-      indent++;
-      dumptree(p->kids[0]);
-      if (specific(p->op) == CALL + B) dumptree(p->kids[1]);
-      indent--;
-      print("%I%s\n", indent, opname(p->op));
+      print("%s(", indent, opname(p->op));
+      dumptreeBody(p->kids[0]);
+      if (specific(p->op) == CALL + B){
+        print(", ");
+        dumptreeBody(p->kids[1]);
+      }
+      print(")");
       return;
     case ASGN:
       assert(p->kids[0]);
       assert(p->kids[1]);
-
-      indent++;
-      dumptree(p->kids[0]);
-      dumptree(p->kids[1]);
-      indent--;
-      print("%I%s\n", indent, opname(p->op));
+      print("%s", opname(p->op));
+      print("(");
+      dumptreeBody(p->kids[0]);
+      print(", ");
+      dumptreeBody(p->kids[1]);
+      print(")");
       return;
     case BOR:
     case BAND:
@@ -225,11 +222,12 @@ static void dumptree(Node p) {
     case MOD:
       assert(p->kids[0]);
       assert(p->kids[1]);
-      indent++;
-      dumptree(p->kids[0]);
-      dumptree(p->kids[1]);
-      indent--;
-      print("%I%s\n", indent, opname(p->op));
+      print("%s", opname(p->op));
+      print("(");
+      dumptreeBody(p->kids[0]);
+      print(", ");
+      dumptreeBody(p->kids[1]);
+      print(")");
       return;
     case EQ:
     case NE:
@@ -241,15 +239,20 @@ static void dumptree(Node p) {
       assert(p->kids[1]);
       assert(p->syms[0]);
       assert(p->syms[0]->x.name);
-      indent++;
-      dumptree(p->kids[0]);
-      dumptree(p->kids[1]);
-      indent--;
-      print("%I%s %s\n", indent, opname(p->op), p->syms[0]->x.name);
+      print("%s[%s]", opname(p->op), p->syms[0]->x.name);
+      print("(");
+      dumptreeBody(p->kids[0]);
+      print(", ");
+      dumptreeBody(p->kids[1]);
+      print(")");
       return;
   }
-  print("%I,Should not be here, op:%x, %s\n", indent, p->op, opname(p->op));
+  print("Should not be here in dumptree, op:%x, %s\n", p->op, opname(p->op));
   /* assert(0); */
+}
+static void dumptree(Node p) {
+  dumptreeBody(p);
+  print("\n");
 }
 
 static int getrule(Node p, int nt) {
@@ -374,19 +377,6 @@ static void I(emitBurg)(Node p) {
   }
 }
 
-static Node genDiscard(Node p) {
-  Node newNode;
-  if (generic(p->op) == CALL && optype(p->op) != VOID &&
-      specific(p->op) != CALL + B) {
-    assert(specific(p->op) != CALL + B && "not expecting CALLB ");
-    newNode = newnode(POP + optype(p->op) + sizeop(opsize(p->op)), p, NULL,
-                      intconst(roundup(opsize(p->op), 2)));
-    newNode->link = p->link;
-    p->link = NULL;
-    return newNode;
-  }
-  return p;
-}
 /* check if P or its descendents are a CALL*/
 static Node findCall(Node p) {
   Node call = NULL;
@@ -396,46 +386,6 @@ static Node findCall(Node p) {
     if ((call = findCall(p->kids[1])) != NULL) return call;
   if (generic(p->op) == CALL) return p;
   return NULL;
-}
-
-// Returns a new ARGSTART node linking to q if q is the first arg for a call
-// or a call with no args. Otherwise, returns q
-// An  ARGSTART node has syms[0] that points to a symbol whose only useful
-// attribute is type which is the type of the callee function
-static Node genStartArg(Node q) {
-  Node call = NULL, p, newNode, prev;
-
-  if (generic(q->op) == CALL || generic(q->op) == ARG) {
-    if (q->x.argno != 0) return q;
-  } else if (generic(q->op) == ASGN && generic(q->kids[1]->op) == CALL) {
-    if (q->kids[1]->x.argno != 0) return q;
-  } else if (generic(q->op) == POP && generic(q->kids[0]->op) == CALL) {
-    if (q->kids[0]->x.argno != 0) return q;
-  } else
-    return q;
-
-  for (p = q; p; p = p->link) {
-    call = findCall(p);
-    if (call != NULL) break;
-  }
-  if (call == NULL) {
-    error("call not found for ARG or CALL\n");
-    return q;
-  }
-  if (call->syms[0] == NULL || call->syms[0]->type == NULL) {
-    error("No type in sysm[1] for call\n");
-    return q;
-  }
-  if (!isfunc(call->syms[0]->type)) {
-    error("Type found for callee of call is not a function: %t\n",
-          call->syms[0]->type);
-    return q;
-  }
-  if (verbose) print(".info Found callee type: %t\n", call->syms[0]->type);
-
-  newNode = newnode(ARGSTART, NULL, NULL, call->syms[0]);
-  newNode->link = q;
-  return newNode;
 }
 
 static void reduce(Node p, int nt) {
@@ -504,31 +454,13 @@ static Node I(gen)(Node forest) {
   assert(forest);
 
   for (prev = NULL, q = forest; q; q = q->link) {
-    q = genDiscard(q);
-    if (prev) {
-      prev->link = q;
-    } else {
-      forest = q;  // in case we replaced the start of the forest
-    }
     if (generic(q->op) == CALL)
       docall(q);
     else if (generic(q->op) == ASGN && generic(q->kids[1]->op) == CALL)
       docall(q->kids[1]);
-    else if (generic(q->op) == POP && generic(q->kids[0]->op) == CALL)
-      docall(q->kids[0]);
     else if (generic(q->op) == ARG)
       (*IR->x.doarg)(q);
 
-    prev = q;
-  }
-
-  for (prev = NULL, q = forest; q; q = q->link) {
-    Node newNode = genStartArg(q);
-    if (prev) {
-      prev->link = newNode;
-    } else {
-      forest = newNode;  // in case we replaced the start of the forest
-    }
     prev = q;
   }
 
@@ -750,10 +682,10 @@ Interface vgerIliaIR = {
     0, 2, 0, /* struct */
     0, /* little_endian */
     0, /* mulops_calls */
-    0, /* wants_callb */
+    1, /* wants_callb */
     1, /* wants_argb */
     0, /* left_to_right */
-    0, /* wants_dag */
+    1, /* wants_dag */
     0, /* unsigned_char */
     I(address),
     blockbeg,
