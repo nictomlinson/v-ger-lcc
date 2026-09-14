@@ -250,9 +250,99 @@ static void dumptreeBody(Node p) {
   print("Should not be here in dumptree, op:%x, %s\n", p->op, opname(p->op));
   /* assert(0); */
 }
+// static void dumptree(Node p) {
+//   dumptreeBody(p);
+//   print("\n");
+// }
+static void dumpTreeSafe(Node p){
+  if(p == NULL){
+    print("<nullNode>");
+    return;
+  }
+  if (p->op == VREG+P && p->syms[0]) {
+		print("VREGP(%s)", p->syms[0]->name ? p->syms[0]->name : "<nullName>");
+		return;
+	} else if (generic(p->op) == LOAD) {
+		print("LOAD(");
+		dumpTreeSafe(p->kids[0]);
+	  print(")");
+		return;
+	}
+	print("%s(", opname(p->op));
+	switch (generic(p->op)) {
+	case CNST: case LABEL:
+	case ADDRG: case ADDRF: case ADDRL:
+		if (p->syms[0])
+			print("%s", p->syms[0]->x.name ? p->syms[0]->x.name : "<nullXName>");
+		break;
+	case RET:
+		if (p->kids[0])
+			dumpTreeSafe(p->kids[0]);
+		break;
+	case CVF: case CVI: case CVP: case CVU: case JUMP: 
+	case ARG: case BCOM: case NEG: case INDIR:
+		dumpTreeSafe(p->kids[0]);
+		break;
+	case CALL:
+		if (optype(p->op) != B) {
+			dumpTreeSafe(p->kids[0]);
+			break;
+		}
+		/* else fall thru */
+	case EQ: case NE: case GT: case GE: case LE: case LT:
+	case ASGN: case BOR: case BAND: case BXOR: case RSH: case LSH:
+	case ADD: case SUB:  case DIV: case MUL: case MOD:
+		dumpTreeSafe(p->kids[0]);
+		print(", ");
+		dumpTreeSafe(p->kids[1]);
+		break;
+	default: assert(0);
+	}
+	print(")");
+
+}
+
 static void dumptree(Node p) {
-  dumptreeBody(p);
-  print("\n");
+	if (p->op == VREG+P && p->syms[0]) {
+		print("VREGP(%s)", p->syms[0]->name);
+		return;
+	} else if (generic(p->op) == LOAD) {
+		print("LOAD(");
+		dumptree(p->kids[0]);
+	  print(")");
+		return;
+	}
+	print("%s(", opname(p->op));
+	switch (generic(p->op)) {
+	case CNST: case LABEL:
+	case ADDRG: case ADDRF: case ADDRL:
+		if (p->syms[0])
+			print("%s", p->syms[0]->x.name);
+		break;
+	case RET:
+		if (p->kids[0])
+			dumptree(p->kids[0]);
+		break;
+	case CVF: case CVI: case CVP: case CVU: case JUMP: 
+	case ARG: case BCOM: case NEG: case INDIR:
+		dumptree(p->kids[0]);
+		break;
+	case CALL:
+		if (optype(p->op) != B) {
+			dumptree(p->kids[0]);
+			break;
+		}
+		/* else fall thru */
+	case EQ: case NE: case GT: case GE: case LE: case LT:
+	case ASGN: case BOR: case BAND: case BXOR: case RSH: case LSH:
+	case ADD: case SUB:  case DIV: case MUL: case MOD:
+		dumptree(p->kids[0]);
+		print(", ");
+		dumptree(p->kids[1]);
+		break;
+	default: assert(0);
+	}
+	print(")");
 }
 
 static int getrule(Node p, int nt) {
@@ -518,6 +608,29 @@ static void I(local)(Symbol p) {
   emitSymbol(p, "local", 1);
 }
 
+void dumpCode(void) {
+  #if 0
+	Code cp;
+	cp = codehead.next;
+	for ( ; errcnt <= 0 && cp; cp = cp->next)
+		switch (cp->kind) {
+		case Gen:
+    case Jump:
+		case Label:
+    if (cp->u.forest){
+      Node q;
+      for (q = cp->u.forest; q; q = q->link) {
+        print("NextNode> ");
+        dumptree(q);
+        print("\n");
+      }
+    }
+    break;
+		default: break;
+		}
+    #endif
+}
+
 static void I(function)(Symbol f, Symbol caller[], Symbol callee[],
                         int ncalls) {
   int i;
@@ -541,6 +654,8 @@ static void I(function)(Symbol f, Symbol caller[], Symbol callee[],
 
   maxargoffset = maxoffset = argoffset = offset = 0;
   gencode(caller, callee);
+  dumpCode();
+
   framesize = roundup(maxoffset, 2);
 
   if (verbose) {
@@ -561,7 +676,6 @@ static void I(function)(Symbol f, Symbol caller[], Symbol callee[],
   } else {
     print("\tenter %d\n", framesize);
   }
-
   emitcode();
 
   // emit epilog.
@@ -671,22 +785,22 @@ static void I(stabline)(Coordinate *cp) {
 Interface vgerIliaIR = {
     /* size, align, outofline */
     1, 1, 0, /* char */
-    2, 2, 0, /* short */
-    2, 2, 0, /* int */
-    4, 2, 1, /* long */
-    4, 2, 1, /* long long */
-    4, 2, 1, /* float */
-    8, 2, 1, /* double */
-    8, 2, 1, /* long double */
-    2, 2, 0, /* T* */
-    0, 2, 0, /* struct */
-    0, /* little_endian */
+    2, 1, 0, /* short */
+    2, 1, 0, /* int */
+    4, 1, 0, /* long */
+    4, 1, 0, /* long long */
+    4, 1, 0, /* float */
+    8, 1, 0, /* double */
+    8, 1, 0, /* long double */
+    2, 1, 0, /* T* */
+    0, 1, 0, /* struct */
+    1, /* little_endian */
     0, /* mulops_calls */
     1, /* wants_callb */
     1, /* wants_argb */
     0, /* left_to_right */
-    1, /* wants_dag */
-    0, /* unsigned_char */
+    0, /* wants_dag */
+    1, /* unsigned_char */
     I(address),
     blockbeg,
     blockend,
